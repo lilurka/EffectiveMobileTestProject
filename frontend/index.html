@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Effective Mobile — DevOps Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #1c2128;
+      --border:    #30363d;
+      --accent:    #58a6ff;
+      --accent2:   #3fb950;
+      --warn:      #f85149;
+      --muted:     #8b949e;
+      --text:      #e6edf3;
+      --radius:    12px;
+      --shadow:    0 8px 32px rgba(0,0,0,.45);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px 60px;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .logo-icon {
+      width: 48px; height: 48px;
+      background: linear-gradient(135deg, var(--accent), #388bfd);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px;
+    }
+    .logo h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -.5px; }
+    header p  { color: var(--muted); font-size: .9rem; }
+
+    /* ── Grid ── */
+    .grid {
+      width: 100%; max-width: 860px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
+    .card-label {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .card-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .card-sub {
+      font-size: .8rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* ── Status dot ── */
+    .dot {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      margin-right: 6px;
+      background: var(--muted);
+      transition: background .3s;
+    }
+    .dot.ok   { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); }
+    .dot.err  { background: var(--warn);    box-shadow: 0 0 8px var(--warn); }
+    .dot.ping { animation: pulse 1s infinite; background: var(--accent); }
+
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: .3; }
+    }
+
+    /* ── Ping panel ── */
+    .ping-panel {
+      width: 100%; max-width: 860px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+    }
+    .ping-panel h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .ping-panel h2 span { font-size: 1.2rem; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border-radius: 8px;
+      border: none;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary {
+      background: var(--accent);
+      color: #0d1117;
+    }
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .response-box {
+      margin-top: 20px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'Cascadia Code', 'Fira Mono', monospace;
+      font-size: .85rem;
+      color: var(--accent2);
+      min-height: 60px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.6;
+    }
+    .response-box.error { color: var(--warn); }
+    .response-box.empty { color: var(--muted); font-style: italic; }
+
+    .meta-row {
+      display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap;
+    }
+    .meta-chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: .75rem;
+      color: var(--muted);
+    }
+    .meta-chip strong { color: var(--text); }
+
+    /* ── Architecture diagram ── */
+    .arch-panel {
+      width: 100%; max-width: 860px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+    .arch-panel h2 {
+      font-size: 1rem; font-weight: 600;
+      margin-bottom: 20px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .arch {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+      row-gap: 16px;
+    }
+    .arch-node {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 20px;
+      text-align: center;
+      min-width: 130px;
+    }
+    .arch-node .icon { font-size: 1.6rem; margin-bottom: 4px; }
+    .arch-node .name { font-size: .8rem; font-weight: 700; }
+    .arch-node .detail { font-size: .7rem; color: var(--muted); margin-top: 2px; }
+    .arch-arrow {
+      padding: 0 12px;
+      color: var(--accent);
+      font-size: 1.4rem;
+      font-weight: 300;
+    }
+    .arch-label {
+      font-size: .65rem;
+      color: var(--muted);
+      text-align: center;
+      margin-top: 2px;
+    }
+
+    /* ── History ── */
+    .history {
+      margin-top: 16px;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+    }
+    .history h3 { font-size: .8rem; color: var(--muted); margin-bottom: 10px; }
+    .history-list { display: flex; flex-direction: column; gap: 6px; }
+    .history-item {
+      display: flex; align-items: center; gap: 10px;
+      font-size: .78rem; color: var(--muted);
+    }
+    .history-item .h-status { font-weight: 700; min-width: 24px; }
+    .history-item .h-status.ok  { color: var(--accent2); }
+    .history-item .h-status.err { color: var(--warn); }
+    .history-item .h-time { margin-left: auto; }
+
+    footer {
+      margin-top: 48px;
+      color: var(--muted);
+      font-size: .75rem;
+      text-align: center;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚙️</div>
+    <h1>Effective Mobile</h1>
+  </div>
+  <p>DevOps Test Assignment — Infrastructure Dashboard</p>
+</header>
+
+<!-- Status cards -->
+<div class="grid">
+  <div class="card">
+    <div class="card-label">Backend Status</div>
+    <div class="card-value" id="backend-status">
+      <span class="dot" id="backend-dot"></span><span id="backend-text">—</span>
+    </div>
+    <div class="card-sub" id="backend-sub">Not checked yet</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Nginx (Reverse Proxy)</div>
+    <div class="card-value">
+      <span class="dot ok"></span>Online
+    </div>
+    <div class="card-sub">Serving on port 80</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Ping Count</div>
+    <div class="card-value" id="ping-count">0</div>
+    <div class="card-sub">requests sent this session</div>
+  </div>
+</div>
+
+<!-- Ping panel -->
+<div class="ping-panel">
+  <h2><span>🛰️</span> Ping Backend</h2>
+
+  <div style="display:flex;gap:12px;flex-wrap:wrap">
+    <button class="btn btn-primary" id="btn-ping" onclick="doPing()">
+      ▶ Send Ping
+    </button>
+    <button class="btn btn-secondary" onclick="clearHistory()">
+      🗑 Clear
+    </button>
+  </div>
+
+  <div class="response-box empty" id="response-box">
+    Hit "Send Ping" to call /api/ping on the backend…
+  </div>
+
+  <div class="meta-row" id="meta-row" style="display:none">
+    <div class="meta-chip">Status: <strong id="m-status">—</strong></div>
+    <div class="meta-chip">Latency: <strong id="m-latency">—</strong></div>
+    <div class="meta-chip">Time: <strong id="m-time">—</strong></div>
+  </div>
+
+  <div class="history" id="history-wrap" style="display:none">
+    <h3>Request History</h3>
+    <div class="history-list" id="history-list"></div>
+  </div>
+</div>
+
+<!-- Architecture -->
+<div class="arch-panel">
+  <h2><span>🗺️</span> Architecture</h2>
+  <div class="arch">
+    <div class="arch-node">
+      <div class="icon">🌐</div>
+      <div class="name">Internet</div>
+      <div class="detail">Your browser</div>
+    </div>
+    <div style="text-align:center">
+      <div class="arch-arrow">→</div>
+      <div class="arch-label">:80 HTTP</div>
+    </div>
+    <div class="arch-node">
+      <div class="icon">🔀</div>
+      <div class="name">Nginx</div>
+      <div class="detail">Reverse Proxy<br/>Docker container</div>
+    </div>
+    <div style="text-align:center">
+      <div class="arch-arrow">→</div>
+      <div class="arch-label">:8080 internal</div>
+    </div>
+    <div class="arch-node">
+      <div class="icon">🐍</div>
+      <div class="name">Python Backend</div>
+      <div class="detail">http.server<br/>Docker container</div>
+    </div>
+  </div>
+  <p style="text-align:center;color:var(--muted);font-size:.75rem;margin-top:20px;">
+    Backend port 8080 is <strong style="color:var(--warn)">not exposed</strong> to the host — accessible only inside the Docker network.
+  </p>
+</div>
+
+<footer>
+  Deployed on <a href="https://cloud.yandex.ru" target="_blank">Yandex Cloud</a> ·
+  Docker + Docker Compose · Nginx + Python
+</footer>
+
+<script>
+  const history = [];
+  let pingCount = 0;
+
+  async function doPing() {
+    const btn = document.getElementById('btn-ping');
+    const box = document.getElementById('response-box');
+    const dot = document.getElementById('backend-dot');
+    const txt = document.getElementById('backend-text');
+    const sub = document.getElementById('backend-sub');
+    const metaRow = document.getElementById('meta-row');
+
+    btn.disabled = true;
+    dot.className = 'dot ping';
+    txt.textContent = 'Pinging…';
+    box.className = 'response-box';
+    box.textContent = 'Sending request to /api/ping…';
+
+    const t0 = performance.now();
+    const ts = new Date().toLocaleTimeString();
+
+    try {
+      const res = await fetch('/api/ping');
+      const latency = Math.round(performance.now() - t0);
+      const data = await res.json();
+
+      // Update status
+      dot.className = 'dot ok';
+      txt.textContent = 'Online';
+      sub.textContent = `Last checked at ${ts}`;
+
+      // Show response
+      box.className = 'response-box';
+      box.textContent = JSON.stringify(data, null, 2);
+
+      // Meta
+      document.getElementById('m-status').textContent = res.status + ' OK';
+      document.getElementById('m-latency').textContent = latency + ' ms';
+      document.getElementById('m-time').textContent = ts;
+      metaRow.style.display = 'flex';
+
+      addHistory('ok', res.status, latency, ts);
+    } catch (e) {
+      dot.className = 'dot err';
+      txt.textContent = 'Error';
+      sub.textContent = `Failed at ${ts}`;
+
+      box.className = 'response-box error';
+      box.textContent = '✗ ' + e.message;
+
+      document.getElementById('m-status').textContent = 'Error';
+      document.getElementById('m-latency').textContent = '—';
+      document.getElementById('m-time').textContent = ts;
+      metaRow.style.display = 'flex';
+
+      addHistory('err', 'ERR', 0, ts);
+    } finally {
+      btn.disabled = false;
+      pingCount++;
+      document.getElementById('ping-count').textContent = pingCount;
+    }
+  }
+
+  function addHistory(type, status, latency, time) {
+    history.unshift({ type, status, latency, time });
+    if (history.length > 8) history.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const wrap = document.getElementById('history-wrap');
+    const list = document.getElementById('history-list');
+    wrap.style.display = 'block';
+    list.innerHTML = history.map(h => `
+      <div class="history-item">
+        <span class="h-status ${h.type}">${h.type === 'ok' ? '✓' : '✗'}</span>
+        <span>HTTP ${h.status}</span>
+        ${h.type === 'ok' ? `<span>${h.latency} ms</span>` : ''}
+        <span class="h-time">${h.time}</span>
+      </div>
+    `).join('');
+  }
+
+  function clearHistory() {
+    history.length = 0;
+    pingCount = 0;
+    document.getElementById('ping-count').textContent = 0;
+    document.getElementById('history-wrap').style.display = 'none';
+    document.getElementById('meta-row').style.display = 'none';
+    const box = document.getElementById('response-box');
+    box.className = 'response-box empty';
+    box.textContent = 'Hit "Send Ping" to call /api/ping on the backend…';
+    const dot = document.getElementById('backend-dot');
+    dot.className = 'dot';
+    document.getElementById('backend-text').textContent = '—';
+    document.getElementById('backend-sub').textContent = 'Not checked yet';
+  }
+
+  // Auto-ping on load
+  window.addEventListener('load', () => setTimeout(doPing, 600));
+</script>
+</body>
+</html>
